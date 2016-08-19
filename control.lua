@@ -1,3 +1,4 @@
+--[[ list of inventories to save - constants from api reference]]--
 local storeinventories = { 
 	defines.inventory.player_vehicle,
 	defines.inventory.player_armor,
@@ -9,6 +10,7 @@ local storeinventories = {
 	defines.inventory.player_trash, 
 }
 
+--[[ name of inventories to print on report ]]--
 local storeinventoriesstring = { 
 	"Vehicle",
 	"Armor",
@@ -20,97 +22,107 @@ local storeinventoriesstring = {
 	"Trash", 
 }
 
-function on_player_died(event)
-	local transfered = 0	
-	local chestId = 1
-	local player = game.players[event.player_index]
+local save_craft_queue = true
+
+function spawn_chest(player, chestname)
 	if player ~= nil then
 		local playersurface = game.surfaces[player.surface.name]
 		if playersurface ~= nil then
 			local chestposition = playersurface.find_non_colliding_position("blackbox-chest", player.position, 100, 1)
 			if chestposition ~= nil then
 				local savechest = playersurface.create_entity({
-					name = "blackbox-chest",
+					name = chestname,
 					position = chestposition,
 					force = game.forces.neutral
 				})
 				if savechest ~= nil then
 					savechest.destructible = false
-					local chestitems = 0
+					return savechest
+				end
+			end
+		end
+	end
 
-					for i = 1, #storeinventories, 1 do
-						local inventoryid = storeinventories[i]
-						local playerinventory = player.get_inventory(inventoryid)
-						if playerinventory ~= nil then
-							local chestinventory = savechest.get_inventory(defines.inventory.chest)
-							if chestinventory ~= nil then			
-								player.print("Storing items from inventory '" .. storeinventoriesstring[i] .. "(" .. tostring(inventoryid) .. ")' to chest #" .. tostring(chestId))
-								for j = 1, #playerinventory, 1 do
-									if playerinventory[j].valid and playerinventory[j].valid_for_read then
-										local item = playerinventory[j]
-			
-										if storeinventories[i] == defines.inventory.player_guns and item.name == "pistol" then
+	return nil
+end
 
-										else
-											if storeinventories[i] == defines.inventory.player_ammo and item.name == "firearm-magazine" then
-												if item.count > 10 then
-													item.count = item.count - 10
-												end
-											end
-											if chestinventory ~= nill and chestinventory.can_insert(item) then
-												chestitems = chestitems + 1
-												chestinventory[chestitems].set_stack(item)
-												transfered = transfered + 1
-											else
-												chestposition = playersurface.find_non_colliding_position("blackbox-chest", player.position, 100, 1)
-												if chestposition ~= nil then
-													savechest = playersurface.create_entity({
-														name = "blackbox-chest",
-														position = chestposition,
-														force = game.forces.neutral
-													})
-													if savechest ~= nil then
-														chestitems = 0
-														chestinventory = savechest.get_inventory(1)
-														if chestinventory ~= nil then
-															chestitems = 1
-															chestinventory[chestitems].set_stack(item)
-															transfered = transfered + 1
-															chestId = chestId + 1
-															player.print("Storing items from inventory '" .. storeinventoriesstring[i] .. "(" .. tostring(inventoryid) .. ")' to chest #" .. tostring(chestId))
-														end
-													end
-												end
-											end
+function on_player_died(event)
+	local player = game.players[event.player_index]
+	if player ~= nil then
+		local transfered = 0	
+		local chestId = 1
+		local savechest = spawn_chest(player, "blackbox-chest")
+		if savechest ~= nil then
+			local chestitems = 0
+			local chestinventory = savechest.get_inventory(defines.inventory.chest)
+
+			--[[ save all predefined inventorie ]]--
+			for i = 1, #storeinventories, 1 do
+				local inventoryid = storeinventories[i]
+				local playerinventory = player.get_inventory(inventoryid)
+				if playerinventory ~= nil and chestinventory ~= nil then			
+					player.print("Storing items from inventory '" .. storeinventoriesstring[i] .. "(" .. tostring(inventoryid) .. ")' to chest #" .. tostring(chestId))
+					for j = 1, #playerinventory, 1 do
+						if playerinventory[j].valid and playerinventory[j].valid_for_read then
+							local item = playerinventory[j]
+							if storeinventories[i] == defines.inventory.player_guns and item.name == "pistol" then
+
+							else
+								if storeinventories[i] == defines.inventory.player_ammo and item.name == "firearm-magazine" then
+									if item.count > 10 then
+										item.count = item.count - 10
+									end
+								end
+								if chestinventory ~= nil and chestinventory.can_insert(item) then
+									chestitems = chestitems + 1
+									chestinventory[chestitems].set_stack(item)
+									transfered = transfered + 1
+								else
+									savechest = spawn_chest(player, "blackbox-chest")
+									chestinventory = nil
+									if savechest ~= nil then
+										chestitems = 0
+										chestinventory = savechest.get_inventory(1)
+										if chestinventory ~= nil then
+											chestitems = 1
+											chestinventory[chestitems].set_stack(item)
+											transfered = transfered + 1
+											chestId = chestId + 1
+											player.print("Storing items from inventory '" .. storeinventoriesstring[i] .. "(" .. tostring(inventoryid) .. ")' to chest #" .. tostring(chestId))
 										end
+									else --[[ break if unable to spawn new chest ]]--
+										break
 									end
 								end
 							end
 						end
-					end						
-					if chestitems == 0 then
-						savechest.destroy()
+					end	--[[ end for #playerinventory ]]--
+				else --[[ break if unable to spawn new chest ]]--
+					if savechest == nil then
+						break
 					end
 				end
+			end	--[[ end for #storeinventories ]]--
+			if chestitems == 0 then
+				if savechest ~= nil then
+					savechest.destroy()
+				end
 			end
-			local maininventory = player.get_inventory(defines.inventory.player_main)
-			local toolbar = player.get_inventory(defines.inventory.player_quickbar)
-			local queue = player.crafting_queue
-			local craftchestId = 1
-			local crafttransfered = 0
-			if maininventory ~= nil and #queue > 0 then
-				chestposition = playersurface.find_non_colliding_position("blackbox-craft-chest", player.position, 100, 1)
-				if chestposition ~= nil then
-					local savechest = playersurface.create_entity({
-						name = "blackbox-craft-chest",
-						position = chestposition,
-						force = game.forces.neutral
-					})
+			
+			--[[ save craft queue ]]--
+			if save_craft_queue == true then
+				local maininventory = player.get_inventory(defines.inventory.player_main)
+				local toolbar = player.get_inventory(defines.inventory.player_quickbar)
+				local queue = player.crafting_queue
+				local craftchestId = 1
+				local crafttransfered = 0
+				if maininventory ~= nil and toolbar ~= nil and #queue > 0 then
+					savechest = spawn_chest(player, "blackbox-craft-chest")
 					if savechest ~= nil then
-						savechest.destructible = false
-						local chestitems = 0
-						--[[ canceled craft resources and intermediates are returned to main inventory, except whole products (like pipes, factories, and so on), those are placed to quickbar, if there is space ]]--
+						chestitems = 0
+						--[[ canceled queue mats are dropped to main inventory ]]--
 						maininventory.clear()
+						--[[ complete products, even if they are intermediate are dropped into toolbar, if they are placeable - eg. factories for example ]]--
 						toolbar.clear()
 						chestinventory = savechest.get_inventory(1)
 						local cnt = player.crafting_queue_size
@@ -119,9 +131,9 @@ function on_player_died(event)
 							player.print("Canceling craft of " .. tostring(craftitem.count) .. " piece(s) of " .. craftitem.recipe .. " , index #" .. tostring(craftitem.index))
 							local cancelparam = { index = craftitem.index, count = craftitem.count }
 							player.cancel_crafting(cancelparam)
+							--[[ canceling craft cancels also intermediate crafts ]]--
 							cnt = player.crafting_queue_size
 						end
-						maininventory = player.get_inventory(defines.inventory.player_main)
 						player.print("Storing items from queue to craft chest #" .. tostring(craftchestId))
 						for j = 1, #maininventory, 1 do
 							if maininventory[j].valid and maininventory[j].valid_for_read then
@@ -132,60 +144,49 @@ function on_player_died(event)
 									chestinventory[chestitems].set_stack(item)
 									crafttransfered = crafttransfered + 1
 								else
-									chestposition = playersurface.find_non_colliding_position("blackbox-craft-chest", player.position, 100, 1)
-									if chestposition ~= nil then
-										savechest = playersurface.create_entity({
-											name = "blackbox-craft-chest",
-											position = chestposition,
-											force = game.forces.neutral
-										})
-										if savechest ~= nil then
-											chestitems = 0
-											chestinventory = savechest.get_inventory(1)
-											if chestinventory ~= nil then
-												chestitems = 1
-												chestinventory[chestitems].set_stack(item)
-												crafttransfered = crafttransfered + 1
-												craftchestId = craftchestId + 1
-												player.print("Storing items from queue to craft chest #" .. tostring(craftchestId))
-											end
+									savechest = spawn_chest(player, "blackbox-craft-chest")
+									if savechest ~= nil then
+										chestitems = 0
+										chestinventory = savechest.get_inventory(1)
+										if chestinventory ~= nil then
+											chestitems = 1
+											chestinventory[chestitems].set_stack(item)
+											crafttransfered = crafttransfered + 1
+											craftchestId = craftchestId + 1
+											player.print("Storing items from queue to craft chest #" .. tostring(craftchestId))
 										end
+									else --[[ break if unable to spawn new chest ]]--
+										break
 									end
 								end
 							end
-						end
-						local toolbar = player.get_inventory(defines.inventory.player_quickbar)
+						end --[[ end for #maininventory ]]--
 						for j = 1, #toolbar, 1 do
 							if toolbar[j].valid and toolbar[j].valid_for_read then
 								local item = toolbar[j]
 
-								if chestinventory ~= nill and chestinventory.can_insert(item) then
+								if chestinventory ~= nil and chestinventory.can_insert(item) then
 									chestitems = chestitems + 1
 									chestinventory[chestitems].set_stack(item)
 									crafttransfered = crafttransfered + 1
 								else
-									chestposition = playersurface.find_non_colliding_position("blackbox-craft-chest", player.position, 100, 1)
-									if chestposition ~= nil then
-										savechest = playersurface.create_entity({
-											name = "blackbox-craft-chest",
-											position = chestposition,
-											force = game.forces.neutral
-										})
-										if savechest ~= nil then
-											chestitems = 0
-											chestinventory = savechest.get_inventory(1)
-											if chestinventory ~= nil then
-												chestitems = 1
-												chestinventory[chestitems].set_stack(item)
-												crafttransfered = crafttransfered + 1
-												craftchestId = craftchestId + 1
-												player.print("Storing items from queue to craft chest #" .. tostring(craftchestId))
-											end
+									savechest = spawn_chest(player, "blackbox-craft-chest")
+									if savechest ~= nil then
+										chestitems = 0
+										chestinventory = savechest.get_inventory(1)
+										if chestinventory ~= nil then
+											chestitems = 1
+											chestinventory[chestitems].set_stack(item)
+											crafttransfered = crafttransfered + 1
+											craftchestId = craftchestId + 1
+											player.print("Storing items from queue to craft chest #" .. tostring(craftchestId))
 										end
+									else --[[ break if unable to spawn new chest ]]--
+										break
 									end
 								end
 							end
-						end
+						end --[[ end for #toolbar ]]--
 					end
 				end
 				local message = "No  craft queue items were saved"
@@ -195,13 +196,13 @@ function on_player_died(event)
 				player.print(message)
 			end
 		end
+
+		local message = "No items were saved"
+		if transfered > 0 then
+			message = "Saved " .. tostring(transfered) .. " item(s) into " .. tostring(chestId) .. " box(es)"
+		end
+		player.print(message)
 	end
-	
-	local message = "No items were saved"
-	if transfered > 0 then
-		message = "Saved " .. tostring(transfered) .. " item(s) into " .. tostring(chestId) .. " box(es)"
-	end
-	player.print(message)
 end
 
 
