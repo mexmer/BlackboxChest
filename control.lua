@@ -73,7 +73,7 @@ function on_player_died(event)
 										item.count = item.count - 10
 									end
 								end
-								if chestinventory ~= nil and #chestinventory >= chestitems + 1 then
+								if chestinventory ~= nil and #chestinventory > chestitems then
 									chestitems = chestitems + 1
 									chestinventory[chestitems].set_stack(item)
 									transfered = transfered + 1
@@ -139,7 +139,7 @@ function on_player_died(event)
 							if maininventory[j].valid and maininventory[j].valid_for_read then
 								local item = maininventory[j]
 
-								if chestinventory ~= nill and chestinventory.can_insert(item) then
+								if chestinventory ~= nill and #chestinventory > chestitems then
 									chestitems = chestitems + 1
 									chestinventory[chestitems].set_stack(item)
 									crafttransfered = crafttransfered + 1
