@@ -22,14 +22,18 @@ local storeinventoriesstring = {
 	"Trash", 
 }
 
+local debuglog = false
+
 local save_craft_queue = true
 
 function spawn_chest(player, chestname)
 	if player ~= nil then
 		local playersurface = game.surfaces[player.surface.name]
 		if playersurface ~= nil then
+			player.print("postion " .. player.position.x .. ":" .. player.position.y);
 			local chestposition = playersurface.find_non_colliding_position("blackbox-chest", player.position, 100, 1)
 			if chestposition ~= nil then
+				player.print("box position " .. chestposition.x .. ":" .. chestposition.y);
 				local savechest = playersurface.create_entity({
 					name = chestname,
 					position = chestposition,
@@ -61,10 +65,23 @@ function on_player_died(event)
 				local inventoryid = storeinventories[i]
 				local playerinventory = player.get_inventory(inventoryid)
 				if playerinventory ~= nil and chestinventory ~= nil then			
-					player.print("Storing items from inventory '" .. storeinventoriesstring[i] .. "(" .. tostring(inventoryid) .. ")' to chest #" .. tostring(chestId))
+					player.print("Storing " .. #playerinventory .. "item(s) from inventory '" .. storeinventoriesstring[i] .. "(" .. tostring(inventoryid) .. ")' to chest #" .. tostring(chestId))
 					for j = 1, #playerinventory, 1 do
+						if debuglog then
+							if playerinventory[j].valid and playerinventory[j].valid_for_read then
+								player.print("inventory " .. i .. " slot " .. j .. playerinventory[j].name)
+							else
+								player.print("inventory " .. i .. " slot " .. j .. " empty")
+							end
+						end
+
 						if playerinventory[j].valid and playerinventory[j].valid_for_read then
 							local item = playerinventory[j]
+							
+							if debuglog then
+								player.print("Storing " .. item.name)
+							end
+							
 							if storeinventories[i] == defines.inventory.player_guns and item.name == "pistol" then
 
 							else
@@ -73,6 +90,10 @@ function on_player_died(event)
 										item.count = item.count - 10
 									end
 								end
+								if debuglog then
+								  player.print(chestitems .. "/" .. #chestinventory)
+								end
+								
 								if chestinventory ~= nil and #chestinventory > chestitems then
 									chestitems = chestitems + 1
 									chestinventory[chestitems].set_stack(item)
@@ -205,5 +226,6 @@ function on_player_died(event)
 	end
 end
 
-
-script.on_event(defines.events.on_player_died, on_player_died)
+--[[ 0.14 on_player_died, 0.15 on_pre_player_died ]]--
+--[[ script.on_event(defines.events.on_player_died, on_player_died) ]]--
+script.on_event(defines.events.on_pre_player_died, on_player_died)
