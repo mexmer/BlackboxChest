@@ -116,7 +116,7 @@ function on_player_died(event)
 				local queue = player.crafting_queue
 				local craftchestId = 1
 				local crafttransfered = 0
-				if maininventory ~= nil and toolbar ~= nil and #queue > 0 then
+				if maininventory ~= nil and toolbar ~= nil and queue ~= nil and #queue > 0 then
 					savechest = spawn_chest(player, "blackbox-craft-chest")
 					if savechest ~= nil then
 						chestitems = 0
